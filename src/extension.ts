@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken } from 'vscode';
 import { QuickJSDebugSession } from './quickjsDebug';
-import * as Net from 'net';
+import * as Net from 'node:net';
 
 /*
  * Set the following compile time flag to true if the

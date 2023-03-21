@@ -1,18 +1,29 @@
-import * as CP from 'child_process';
-import { AddressInfo, createConnection, Server, Socket } from 'net';
-import { basename } from 'path';
+import * as CP from 'node:child_process';
+import * as path from 'node:path';
+import { Transform } from 'node:stream';
+import { basename } from 'node:path';
+import { AddressInfo, createConnection, Server, Socket } from 'node:net';
 import { MappedPosition } from 'source-map';
-import { InitializedEvent, Logger, logger, OutputEvent, Scope, Source, StackFrame, StoppedEvent, TerminatedEvent, Thread, ThreadEvent } from 'vscode-debugadapter';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import {
+	InitializedEvent,
+	Logger,
+	logger,
+	OutputEvent,
+	Scope,
+	Source,
+	StackFrame,
+	StoppedEvent,
+	TerminatedEvent,
+	Thread,
+	ThreadEvent
+} from '@vscode/debugadapter';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import { SourcemapArguments } from './sourcemapArguments';
 import { SourcemapSession } from "./sourcemapSession";
-const path = require('path');
-const Parser = require('stream-parser');
-const Transform = require('stream').Transform;
-const { Subject } = require('await-notify');
+import Parser from 'stream-parser';
+import { Subject } from 'await-notify';
 
 interface CommonArguments extends SourcemapArguments {
-	program: string;
 	args?: string[];
 	cwd?: string;
 	runtimeExecutable: string;
@@ -21,6 +32,7 @@ interface CommonArguments extends SourcemapArguments {
 	port: number;
 	console?: ConsoleType;
 	trace?: boolean;
+	program?: string;
 }
 interface LaunchRequestArguments extends CommonArguments, DebugProtocol.LaunchRequestArguments {
 }
@@ -35,19 +47,19 @@ interface AttachRequestArguments extends CommonArguments, DebugProtocol.AttachRe
 class MessageParser extends Transform {
 	constructor() {
 		super();
-		this._bytes(9, this.onLength);
+		(this as any)._bytes(9, this.onLength);
 	}
 
 	private onLength(buffer: Buffer) {
 		let length = parseInt(buffer.toString(), 16);
 		this.emit('length', length);
-		this._bytes(length, this.onMessage);
+		(this as any)._bytes(length, this.onMessage);
 	}
 
 	private onMessage(buffer: Buffer) {
 		let json = JSON.parse(buffer.toString());
 		this.emit('message', json);
-		this._bytes(9, this.onLength);
+		(this as any)._bytes(9, this.onLength);
 	}
 }
 Parser(MessageParser.prototype);
@@ -242,7 +254,7 @@ export class QuickJSDebugSession extends SourcemapSession {
 			this.sendErrorResponse(response, 17, e.message);
 			return;
 		}
-		let cwd = <string>args.cwd || path.dirname(args.program);
+		let cwd = <string>args.cwd || args.program ? path.dirname(args.program!) : "";
 
 		if (typeof args.console === 'string') {
 			switch (args.console) {
@@ -258,7 +270,9 @@ export class QuickJSDebugSession extends SourcemapSession {
 		}
 
 		let qjsArgs = (args.args || []).slice();
-		qjsArgs.unshift(args.program);
+		if (args.program) {
+			qjsArgs.push(args.program);
+		}
 
 		if (this._supportsRunInTerminalRequest && (this._console === 'externalTerminal' || this._console === 'integratedTerminal')) {
 
@@ -373,10 +387,10 @@ export class QuickJSDebugSession extends SourcemapSession {
 	}
 
 	private _captureOutput(process: CP.ChildProcess) {
-		process.stdout.on('data', (data: string) => {
+		process.stdout?.on('data', (data: string) => {
 			this.sendEvent(new OutputEvent(data.toString(), 'stdout'));
 		});
-		process.stderr.on('data', (data: string) => {
+		process.stderr?.on('data', (data: string) => {
 			this.sendEvent(new OutputEvent(data.toString(), 'stderr'));
 		});
 	}
@@ -509,7 +523,7 @@ export class QuickJSDebugSession extends SourcemapSession {
 		if (this._threads.size === 0) {
 			await new Promise((resolve, reject) => {
 				this.once('quickjs-thread', () => {
-					resolve();
+					resolve(void 0);
 				});
 			});
 		}
